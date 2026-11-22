@@ -1,0 +1,5 @@
+[Event "pgn-eco smoke test"]
+[ECO "C20"]
+[Result "*"]
+
+1. e4 e5 *

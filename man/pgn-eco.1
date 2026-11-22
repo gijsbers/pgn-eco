@@ -1,0 +1,276 @@
+.TH PGN-ECO 1
+.SH NAME
+pgn-eco \- check and classify ECO opening codes in PGN files
+.SH SYNOPSIS
+.nf
+pgn-eco [OPTIONS] \-\-check INPUT...
+pgn-eco [OPTIONS] \-\-output FILE INPUT...
+pgn-eco [OPTIONS] \-\-output-dir DIR INPUT...
+pgn-eco [OPTIONS] \-\-in-place INPUT...
+pgn-eco \-\-update-books
+pgn-eco [\-\-help | \-h]
+.fi
+.SH DESCRIPTION
+PGN (Portable Game Notation) is a text format for chess games. ECO
+(Encyclopaedia of Chess Openings) codes label a game's opening, for example
+.B B32.
+.PP
+.B pgn-eco
+reads one or more PGN files and compares their opening tags with an opening
+book. It can check existing tags, write classified games to one combined
+file, write one file per input, or replace input files in place. Choose
+exactly one operating mode: \fB\-\-check\fR, \fB\-\-output\fR,
+\fB\-\-output-dir\fR, or \fB\-\-in-place\fR. The input files are processed
+in the order given.
+.PP
+Without \fB\-\-fill-missing\fR, a writing mode recalculates each game's ECO
+tag when a unique classification is available. With \fB\-\-fill-missing\fR,
+missing tags and one unsupported ECO value can be filled when classification
+is unique. Supported ECO3 and ECO4 tags, and games with duplicate ECO tags,
+are preserved in fill mode. Not every game can be classified.
+.SH EXAMPLES
+.TP
+Check several files:
+.nf
+pgn-eco --check games-*.pgn
+.fi
+.TP
+Write several inputs to one new file:
+.nf
+pgn-eco --output combined.pgn games-2024.pgn games-2025.pgn
+.fi
+.TP
+Write PGN to standard output:
+.nf
+pgn-eco --output - games.pgn | wc -c
+.fi
+.TP
+Write one output file per input. The directory must already exist:
+.nf
+pgn-eco --output-dir classified games-2024.pgn games-2025.pgn
+.fi
+.TP
+Fill missing tags in new output files:
+.nf
+pgn-eco --fill-missing --output-dir completed games-2024.pgn games-2025.pgn
+.fi
+.TP
+Replace each input separately after successful processing:
+.nf
+pgn-eco --in-place games-2024.pgn games-2025.pgn
+.fi
+.TP
+Force sequential processing:
+.nf
+pgn-eco --threads 1 --output result.pgn games.pgn
+.fi
+.SH OPERATING MODES
+.TP
+.B \-\-check INPUT...
+Read and check all input files without writing classified PGN. The summary
+and report options cover all processed games. A difference or unresolved
+game gives status 1; it does not stop checks of later files. A processing or
+I/O error stops the command and takes precedence, giving status 2. With more
+than one input, per-game reports include the source filename.
+.TP
+.B \-\-output FILE INPUT...
+Write all input games, in order, to one new output file. The inputs are not
+changed. Empty inputs add no bytes. A line break is added at a file boundary
+only when the preceding content has no trailing line break and the next
+content has no leading line break. A temporary file is written beside the
+destination and is published only after all inputs succeed. The destination
+must not exist. Ordinary permission bits are the intersection of the input
+files' permission bits.
+.TP
+.B \-\-output-dir DIR INPUT...
+Write one new file per input in the existing directory DIR. The output name
+is the input's basename; directory paths are not copied and names are not
+changed. The directory is not created automatically. Basename collisions
+and any existing destination (including a symbolic or dangling link) are
+rejected before processing starts. Each file is staged in DIR and published
+without replacing an existing entry. Each output keeps the ordinary
+permission bits of its corresponding input.
+.TP
+.B \-\-in-place INPUT...
+Process and atomically replace each input separately. A file is replaced
+only after its complete output has been written and checked. Symbolic links,
+hard-linked files, repeated paths, and aliases to the active ECO book are
+rejected. File ownership and permissions are preserved when possible; if
+they cannot be preserved, the file is left unchanged and the operation fails.
+.PP
+The multi-file \fB\-\-output-dir\fR and \fB\-\-in-place\fR modes are not
+transactions across the entire input list. If a later file fails, previously
+completed files remain complete. A combined \fB\-\-output\fR file is
+published only after every input has succeeded.
+.PP
+The output path must be explicit. Existing file destinations are never
+silently overwritten. \fB\-\-output -\fR writes PGN to standard output and
+does not create a temporary file. Reports and diagnostics go to standard
+error in this mode. Standard output cannot be rolled back after an error.
+Use \fB\-\-output ./-\fR to create a file literally named \fB-\fR. Use
+\fB\-\-\fR before an input filename that starts with a hyphen.
+.PP
+New file outputs preserve the ordinary permission bits of their source. For
+one combined output, the permission bits common to all inputs are used. The
+process creates output files with its normal ownership and group rules; it
+does not copy input ownership. Special permission bits are not copied.
+.SH OPTIONS
+.TP
+.B \-\-fill-missing
+Use fill mode with \fB\-\-output\fR, \fB\-\-output-dir\fR, or
+\fB\-\-in-place\fR. It is not an operating mode by itself. An absent ECO tag
+or one unsupported value can be replaced when there is a unique result.
+Supported ECO3/ECO4 tags and duplicate tag groups remain byte-for-byte
+unchanged. Without this option, output modes update existing tags and can
+collapse duplicate tags when a unique result is found.
+.TP
+.B \-\-mode 3 | 4
+Select three-character ECO3 or four-character Scid-style ECO4 classification.
+Mode 3 is the default and uses the Lichess book; mode 4 uses the Scid book.
+For example, mode 4 can calculate a code such as
+.BR A41e .
+.TP
+.B \-\-eco-book FILE
+Use only the specified opening book. Supported formats include Lichess TSV,
+Scid .eco, Caissabase Scid export, and pgn-extract eco.pgn. Without this
+option, the configured or installed default is used.
+.TP
+.B \-\-threads N
+Set the maximum number of worker threads. If omitted or set to 0, the program
+uses input sizes and the number of input files to decide whether workers are
+useful, then limits them to available logical CPUs. On Linux it considers CPU
+affinity and common cgroup CPU quotas. Use 1 to force sequential processing.
+An explicit value of 2 or more enables workers up to that limit. The pool is
+started only when the first game needs classification. Results remain in
+input order.
+.TP
+.B \-\-limit N
+Check at most N complete games across the entire ordered input list. N must
+be a positive decimal integer. This option is valid only with
+.BR \-\-check .
+Once the global limit is reached, the rest of the current file and later
+files are not read. This option cannot produce a truncated replacement file.
+.TP
+.B \-\-details
+For \fB\-\-check\fR, show totals by ECO code and common code changes.
+.TP
+.B \-\-per-game
+For \fB\-\-check\fR, print a compact result for each game. For multiple
+inputs, each line identifies its input file and game number within that file.
+.TP
+.B \-\-debug
+For \fB\-\-check\fR, show reference positions, FEN, match depth, candidates,
+and history-selection details.
+.TP
+.B \-\-update-books
+Download, check, and install the standard Lichess three-character book and
+the Scid four-character book for offline use. Requires an internet
+connection, curl, and sha256sum. Each book is verified before activation.
+If the Scid update fails after Lichess has been installed, the command reports
+the partial completion and keeps the previous Scid book. This command accepts
+no other options or input files.
+.TP
+.B \-\-help, \-h
+Print command usage.
+.PP
+.BR \-\-details ,
+.BR \-\-per-game ,
+and
+.B \-\-debug
+are mutually exclusive and apply only to \fB\-\-check\fR.
+.SH ECO TAGS
+A tag is missing only when no \fBECO\fR tag is present. An empty value,
+.BR ? ,
+or a value such as
+.B D37/22
+has unsupported notation. pgn-eco does not shorten slash values. ECO3 values
+(A00 to E99) and supported ECO4 values (such as A41e) are syntactically
+valid in either mode. The selected mode determines the code that is
+calculated. A prefix-compatible result confirms only the first three
+characters, not the fourth character.
+.SH OPENING BOOKS
+.SS Standard three-character book
+Run
+.B "pgn-eco --update-books"
+once to install the Lichess ECO3 book and the Scid ECO4 book. Mode 3 uses
+Lichess by default; mode 4 uses Scid by default. Classification with an
+installed book works offline.
+.SS Four-character Scid book
+To use a local Scid book, pass its path and select mode 4:
+.nf
+pgn-eco --mode 4 --eco-book /path/to/scid.eco --check games.pgn
+.fi
+The updater obtains the original Scid book at a pinned revision from
+.I https://github.com/benini/scid/ .
+The file keeps its copyright header. The repository's COPYING file states
+that Scid files other than listed third-party contributions use GPL version
+2; scid.eco is not listed as an exclusion. pgn-eco does not bundle this book.
+.PP
+If \fB\-\-eco-book FILE\fR is given, only that book is used. Otherwise a
+non-empty \fBPGN_ECO_BOOK\fR selects the default, followed by the installed
+search locations. Books can differ in coverage and code choices.
+.SH EXIT STATUS
+.TP
+.B 0
+Processing succeeded. For \fB\-\-check\fR, no differences or unresolved
+findings were found.
+.TP
+.B 1
+\fB\-\-check\fR found a difference or another unresolved finding. This is
+not a processing error.
+.TP
+.B 2
+Invalid arguments, input/output failure, invalid book, or other processing
+error. For multiple check inputs, a processing error takes precedence over
+ordinary classification differences.
+.SH SAFETY
+Input files are read-only except when \fB\-\-in-place\fR is explicitly
+selected. New output files are never allowed to replace an existing path.
+The program validates input and destination paths before classification and
+checks them again during file operations. It uses temporary files in the
+destination directory and removes them on failure. PGN bytes outside ECO tag
+lines that are deliberately changed are preserved.
+.PP
+In-place mode stages a replacement on the same filesystem, checks writes,
+flush and close, then replaces one input atomically. It rejects symlinks,
+hard links and repeated aliases rather than changing their link behaviour.
+For multiple files, each replacement is separate; earlier completed files
+are not rolled back if a later file fails.
+.SH LIMITATIONS
+pgn-eco is an opening classifier, not a complete chess-game validator. It
+checks relevant legal moves near the start of the main line, up to the book
+horizon (at most 40 half-moves). It skips move legality checks inside RAVs
+(parenthesized variations) and after the opening horizon. It still checks PGN
+structure needed for safe record handling. Invalid moves in the relevant
+opening can prevent classification. Some positions are ambiguous or absent
+from the selected book.
+.PP
+Only standard chess is supported. A book may use different labels or cover
+different lines from another book.
+.SH ENVIRONMENT
+.TP
+.B PGN_ECO_BOOK
+Default book path when \fB\-\-eco-book\fR is not given.
+.TP
+.B XDG_DATA_HOME
+Base directory for the per-user Lichess book in mode 3 and Scid book in mode
+4 when it is an absolute path.
+.TP
+.B PGN_ECO_TIMING
+Set to 1 to print phase timings and worker-pool information to standard
+error.
+.SH FILES
+.TP
+.B $XDG_DATA_HOME/pgn-eco/lichess-openings.tsv
+Per-user three-character Lichess book when XDG_DATA_HOME is absolute.
+.TP
+.B $XDG_DATA_HOME/pgn-eco/scid.eco
+Per-user four-character Scid book when XDG_DATA_HOME is absolute.
+.TP
+.B $HOME/.local/share/pgn-eco/lichess-openings.tsv
+Fallback per-user three-character Lichess book location.
+.TP
+.B $HOME/.local/share/pgn-eco/scid.eco
+Fallback per-user four-character Scid book location.
+.SH SEE ALSO
+.BR pgn-extract (1)
